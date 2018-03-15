@@ -1,4 +1,5 @@
 import struct
+import ujson
 
 from rpc import rpc
 from sanic import Sanic
@@ -32,15 +33,9 @@ def dump_range(request, start, stop):
     return response.json(sorted_dump(start, stop))
 
 
-@app.route('/accumulated/<stop:int>')
-def accumulate(request, stop):
-    accumulated = 0
-    result = {"x": [], "y": []}
-    for k, v in sorted_dump(stop=stop).items():
-        accumulated += len(v)
-        result["x"].append(k)
-        result["y"].append(accumulated)
-    return response.json(result)
+@app.route('/stats')
+def stats(request):
+    return response.raw(db.get(b'stats'), content_type='application/json')
 
 
 @app.route('/')

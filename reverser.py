@@ -1,4 +1,6 @@
 # coding: utf-8
+from collections import Counter
+
 import plyvel
 import struct
 import asyncio
@@ -20,8 +22,8 @@ def update_db(expiring_height):
             key = struct.pack('>I40s', int(height), claim_id)
             name = names_db.get(claim_id)
             writer.put(key, name)
-            if int(height) < (expiring_height + 576*90):
-                expired_names[name] = height
+            if int(height) < expiring_height:
+                expired_names[name] = int(height)
 
 
 async def get_names():
@@ -34,9 +36,11 @@ async def get_names():
     print(len(expired_names.keys()))
     for name, claims in [(r['name'], r['claims']) for r in trie]:
         for claim in claims:
-            height = claim['height']
+            height = int(claim['height'])
             if height < (expiring_height + 576*90):  # ~90 days ahead
-                expiring_names.setdefault(name, []).append(claim['height'])
+                expiring_names[name] = max(height, expiring_names.get(name, 0))
+            elif name in expiring_names:
+                del expiring_names[name]
             if name in expired_names:
                 del expired_names[name]
                 print("removing %s as it is also claimed at %s" % (name, height))
@@ -58,6 +62,20 @@ async def get_names():
     print("Renewed names: %s" %  len(renewed_names))
     print("Expired names: %s" %  len(expired_names))
     print("Expiring names: %s" % len(expiring_names))
+    expired_stats = extract_stats(expired_names, 'expired')
+    expiring_stats = extract_stats(expiring_names, 'expiring')
+    print(expired_stats)
+    app_db.put(b'stats', ujson.dumps([expired_stats, expiring_stats]).encode('utf8'))
+
+def extract_stats(height_by_name_dict, stat_name):
+    heights, stats = [], {'x': [], 'y': []}
+    accumulated = 0
+    for (height, sum) in sorted(Counter([height for (name, height) in height_by_name_dict.items()]).items()):
+        accumulated += sum
+        stats['x'].append(height)
+        stats['y'].append(accumulated)
+    stats['name'] = stat_name
+    return stats
 
 
 loop = asyncio.get_event_loop()
