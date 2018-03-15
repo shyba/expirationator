@@ -1,6 +1,6 @@
 import struct
 
-import requests
+from rpc import rpc
 from sanic import Sanic
 from sanic import response
 from sanic_jinja2 import SanicJinja2
@@ -45,9 +45,9 @@ def accumulate(request, stop):
 
 @app.route('/')
 @jinja.template('hello.html')
-def plot_it(request):
-    height = max([block['Height'] for block in requests.get('https://explorer.lbry.io/api/v1/recentblocks').json()['blocks']])
-    return {'height': height}
+async def plot_it(request):
+    current_height = await rpc("getblockcount")
+    return {'height': current_height}
 
 
 if __name__ == '__main__':
