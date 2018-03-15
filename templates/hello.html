@@ -1,0 +1,53 @@
+<!doctype html>
+<title>Hello from Flask</title>
+<head>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+</head>
+<body>
+<p>Last Height: {{ height }}</p>
+<p>Expiring Height (h - 262974): {{ height - 262974 }}</p>
+<p>Red is today, yellow in 7 days, green in 15 days, last value is one month ahead.</p>
+<div id="tester" ></div>
+<script>
+	TESTER = document.getElementById('tester');
+	$(document).ready(function (){
+	    $.getJSON( "/accumulated/{{ height - 262974 + 576*90}}", function( resp ) {
+            Plotly.plot( TESTER, [resp], {
+                margin: { t: 0 },
+                shapes: [
+                    {
+                        type: 'line',
+                        y0: 0,
+                        x0: {{ height - 262974 }},
+                        y1: 1000,
+                        x1: {{ height - 262974 }},
+                        line: {
+                            color: 'red',
+                            width: 2.5
+                        }},
+                    {
+                        type: 'line',
+                        y0: 0,
+                        x0: {{ height - 262974 + 576*7 }},
+                        y1: 1000,
+                        x1: {{ height - 262974 + 576*7}},
+                        line: {
+                            color: 'yellow',
+                            width: 2.5
+                        }},
+                    {
+                        type: 'line',
+                        y0: 0,
+                        x0: {{ height - 262974 + 576*15 }},
+                        y1: 1000,
+                        x1: {{ height - 262974 + 576*15}},
+                        line: {
+                            color: 'green',
+                            width: 2.5
+                        }},
+                ]
+
+    })})});
+</script>
+</body>
