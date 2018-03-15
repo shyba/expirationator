@@ -2,3 +2,6 @@ requests
 plyvel
 sanic
 sanic_jinja2
+aiohttp
+ujson
+git+https://github.com/lbryio/lbryschema.git#egg=lbryschema
