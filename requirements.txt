@@ -1,3 +1,4 @@
 requests
-Flask
 plyvel
+sanic
+sanic_jinja2
