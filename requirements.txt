@@ -2,3 +2,4 @@ requests
 plyvel
 sanic
 sanic_jinja2
+msgpack

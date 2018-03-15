@@ -4,7 +4,7 @@ from sanic import response
 from sanic_jinja2 import SanicJinja2
 from collections import OrderedDict
 import plyvel
-import json
+import msgpack
 
 db = plyvel.DB('db/height_claim')
 app = Sanic(__name__)
@@ -15,7 +15,7 @@ def sorted_dump(start=None, stop=None):
     dump = OrderedDict()
     start, stop = ((x.encode() if x else None) for x in (start, stop))
     for (k, v) in db.iterator(start=start, stop=stop):
-        dump[int(k)] = json.loads(v)
+        dump[int(k)] = msgpack.loads(v)
     return dump
 
 
@@ -34,7 +34,7 @@ def dump_range(request, start, stop):
 def accumulate(request, stop):
     stop = '%06d'%(stop)
     accumulated = 0
-    result = {"x":[], "y":[]}
+    result = {"x": [], "y": []}
     for k, v in sorted_dump(stop=stop).items():
         accumulated += len(v)
         result["x"].append(k)
