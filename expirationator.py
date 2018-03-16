@@ -18,6 +18,7 @@ def sorted_dump(start=None, stop=None):
     dump = OrderedDict()
     start, stop = ((struct.pack('>I', x) if x else None) for x in (start, stop))
     for (key, name) in db.iterator(start=start, stop=stop):
+        if len(key) != dbpacker.size: continue
         height, claim_id = dbpacker.unpack(key)
         dump.setdefault(height, {})[claim_id] = name
     return dump
