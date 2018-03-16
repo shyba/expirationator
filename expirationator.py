@@ -47,11 +47,15 @@ async def plot_it(request):
     return {'height': current_height, 'working_data': working_data}
 
 
-async def schedule_db_update():
-    from reverser import run_updater
-    await run_updater(app_db=db)
+async def schedule_db_update(last_height=None):
+    last_height = last_height or int(ujson.loads(db.get(b'working_data', '{}')).get('last_run_height', 0))
+    current_height = await rpc("getblockcount")
+    if current_height != last_height:
+        print("New block, running DB updater.")
+        from reverser import run_updater
+        await run_updater(app_db=db)
     loop = app.loop
-    loop.call_later(60, lambda: loop.create_task(schedule_db_update()))
+    loop.call_later(1, lambda: loop.create_task(schedule_db_update(current_height)))
 
 
 if __name__ == '__main__':
