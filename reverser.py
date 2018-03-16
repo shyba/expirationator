@@ -12,12 +12,8 @@ from lbryschema.decode import smart_decode
 
 from rpc import rpc
 
-height_db = plyvel.DB('db/claim_height/')
-names_db = plyvel.DB('db/claim_names/')
-app_db = plyvel.DB('db/height_claim/', create_if_missing=True)
 
-
-def update_db(expiring_height):
+def update_db(app_db, names_db, height_db, expiring_height):
     expired_names = {}
     [app_db.delete(x[0]) for x in app_db]
     valid_name_char = "[a-zA-Z0-9\-]"  # these characters are the only valid name characters (from lbryschema:uri.py)
@@ -37,10 +33,10 @@ def update_db(expiring_height):
     return expired_names
 
 
-async def get_names():
+async def get_names(app_db, names_db, height_db):
     current_height = await rpc("getblockcount")
     expiring_height = current_height - 262974
-    expired_names = update_db(expiring_height)
+    expired_names = update_db(app_db, names_db, height_db, expiring_height)
     trie = await rpc("getclaimsintrie")
     expiring_names = {}
     valid_expiring_names = {}
@@ -99,9 +95,13 @@ def extract_stats(height_by_name_dict, stat_name):
     stats['name'] = stat_name
     return stats
 
+async def run_updater(height_db=None, names_db=None, app_db=None):
+    height_db = height_db or plyvel.DB('db/claim_height/')
+    names_db = names_db or plyvel.DB('db/claim_names/')
+    app_db = app_db or plyvel.DB('db/height_claim/', create_if_missing=True)
+    await get_names(app_db, names_db, height_db)
 
-loop = asyncio.get_event_loop()
-loop.run_until_complete(get_names())
-app_db.close()
-height_db.close()
-names_db.close()
+
+if __name__ == '__main__':
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(run_updater())
