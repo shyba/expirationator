@@ -15,10 +15,10 @@ from rpc import rpc
 height_db = plyvel.DB('db/claim_height/')
 names_db = plyvel.DB('db/claim_names/')
 app_db = plyvel.DB('db/height_claim/', create_if_missing=True)
-expired_names = {}
 
 
 def update_db(expiring_height):
+    expired_names = {}
     [app_db.delete(x[0]) for x in app_db]
     valid_name_char = "[a-zA-Z0-9\-]"  # these characters are the only valid name characters (from lbryschema:uri.py)
     valid_name_re = re.compile(valid_name_char)
@@ -34,12 +34,13 @@ def update_db(expiring_height):
             writer.put(key, name.encode())
             if int(height) < expiring_height:
                 expired_names[name] = int(height)
+    return expired_names
 
 
 async def get_names():
     current_height = await rpc("getblockcount")
     expiring_height = current_height - 262974
-    update_db(expiring_height)
+    expired_names = update_db(expiring_height)
     trie = await rpc("getclaimsintrie")
     expiring_names = {}
     valid_expiring_names = {}
