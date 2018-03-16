@@ -41,8 +41,10 @@ def stats(request):
 @app.route('/')
 @jinja.template('hello.html')
 async def plot_it(request):
-    current_height = await rpc("getblockcount")
-    return {'height': current_height}
+    current_height = rpc("getblockcount")
+    working_data = ujson.loads(db.get(b'working_data'))
+    current_height = await current_height
+    return {'height': current_height, 'working_data': working_data}
 
 
 if __name__ == '__main__':

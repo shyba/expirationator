@@ -9,6 +9,19 @@
 <p>Expiring Height (h - 262974): {{ height - 262974 }}</p>
 <p>Red is today, yellow in 7 days, green in 15 days, last value is one month ahead.</p>
 <div id="tester" ></div>
+<p>Expiring Claim Types: {{ working_data['known_types'] }}</p>
+<p>EXPIRING:</p>
+<ul>
+    {% for (height, name) in working_data['expiring'] %}
+        <li><a href="https://explorer.lbry.io/find?q={{ name }}"> {{ name }} - {{ height }}</a></li>
+    {% endfor %}
+</ul>
+<p>EXPIRED:</p>
+<ul>
+    {% for (height, name) in working_data['expired'] %}
+        <li><a href="https://explorer.lbry.io/find?q={{ name }}"> {{ name }} - {{ height }}</a></li>
+    {% endfor %}
+</ul>
 <script>
 	TESTER = document.getElementById('tester');
 	$(document).ready(function (){

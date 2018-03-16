@@ -79,14 +79,13 @@ async def get_names():
     expiring_stats = extract_stats(expiring_names, 'expiring')
     valid_expiring_stats = extract_stats(valid_expiring_names, 'valid and expiring')
     app_db.put(b'stats', ujson.dumps([expired_stats, expiring_stats, valid_expiring_stats]).encode('utf8'))
-    app_db.put(b'known_types', ujson.dumps(list(types)).encode('utf8'))
-    with app_db.write_batch() as writer:
-        for (name, height) in expired_names.items():
-            writer.put(b'expired' + struct.pack('<I', height), name)
-        for (name, height) in expiring_names.items():
-            writer.put(b'expiring' + struct.pack('<I', height), name)
-        for (name, height) in valid_expiring_names.items():
-            writer.put(b'valid_expiring' + struct.pack('<I', height), name)
+    working_data = {'expired': sorted_values(expired_names), 'expiring': sorted_values(expiring_names),
+                    'valid_expiring': sorted_values(valid_expiring_names),
+                    'known_types': list(types)}
+    app_db.put(b'working_data', ujson.dumps(working_data).encode('utf8'))
+
+def sorted_values(dictionary):
+    return sorted((v, k) for (k, v) in dictionary.items())
 
 def extract_stats(height_by_name_dict, stat_name):
     heights, stats = [], {'x': [], 'y': []}
