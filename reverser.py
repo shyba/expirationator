@@ -10,7 +10,8 @@ import ujson
 import re
 
 from lbryschema.decode import smart_decode
-from lbryschema.error import DecodeError
+from lbryschema.uri import parse_lbry_uri
+from lbryschema.error import DecodeError, URIParseError
 
 from rpc import rpc
 
@@ -28,9 +29,10 @@ def update_db(app_db, names_db, height_db, expiring_height):
             try:
                 name = name.decode()
                 if not valid_name_re.match(name): continue
+                parsed_uri = parse_lbry_uri(name)
                 decoded = smart_decode(hexlify(values_db.get(claim_id)).decode())
                 known_types.add(decoded.get('claimType', 'unknown'))
-            except (DecodeError, UnicodeDecodeError):
+            except (DecodeError, UnicodeDecodeError, URIParseError):
                 continue
             writer.put(key, name.encode())
             if int(height) < expiring_height:
@@ -47,32 +49,22 @@ async def get_names(app_db, names_db, height_db):
     valid_expiring_names = {}
     renewed_names = {}
     print(len(expired_names.keys()))
+
     for name, claims in [(r['name'], r['claims']) for r in trie]:
-        for claim in claims:
-            height = int(claim['height'])
-            if height < (expiring_height + 576*90):  # ~90 days ahead
-                expiring_names[name] = max(height, expiring_names.get(name, 0))
-                try:
-                    types.add(smart_decode(claim['value']).get('claimType', 'unknown'))
-                    valid_expiring_names[name] = max(valid_expiring_names.get(name, 0), height)
-                except:
-                    print("%s couldn't be decoded" % name)
-                    pass
-            elif name in expiring_names:
-                del expiring_names[name]
-            if name in expired_names:
-                del expired_names[name]
-                print("removing %s as it is also claimed at %s" % (name, height))
+        max_height = max(int(c['height']) for c in claims)
+        current_value = [c['value'] for c in claims if int(c['height']) == max_height][0]
+        if max_height < (expiring_height + 576*90):  # ~90 days ahead
+            expiring_names[name] = max_height
+            try:
+                types.add(smart_decode(current_value).get('claimType', 'unknown'))
+                valid_expiring_names[name] = expiring_names[name]
+            except:
+                pass
+        if name in expired_names:
+            renewed_names[name] = expired_names.pop(name)
+            print("removing %s as it is also claimed at %s" % (name, max_height))
     print(len(expired_names.keys()))
     print(types)
-
-    async with aiohttp.ClientSession(json_serialize=ujson.dumps) as session:
-        for name in list(expired_names.keys()):
-            response = await rpc("getvalueforname", [name], session=session)
-            height = response.get('height')
-            if height and height > expiring_height:
-                renewed_names[name] = height
-                del expired_names[name]
     print("Renewed names: %s" %  len(renewed_names))
     print("Expired names: %s" %  len(expired_names))
     print("Expiring names: %s" % len(expiring_names))
