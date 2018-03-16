@@ -1,13 +1,10 @@
 import struct
 import ujson
 
-import asyncio
-
 from rpc import rpc
 from sanic import Sanic
 from sanic import response
 from sanic_jinja2 import SanicJinja2
-from collections import OrderedDict
 import plyvel
 
 db = plyvel.DB('db/height_claim')
