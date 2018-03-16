@@ -1,6 +1,8 @@
 import struct
 import ujson
 
+import asyncio
+
 from rpc import rpc
 from sanic import Sanic
 from sanic import response
@@ -48,5 +50,13 @@ async def plot_it(request):
     return {'height': current_height, 'working_data': working_data}
 
 
+async def schedule_db_update():
+    from reverser import run_updater
+    await run_updater(app_db=db)
+    loop = app.loop
+    loop.call_later(60, lambda: loop.create_task(schedule_db_update()))
+
+
 if __name__ == '__main__':
+    app.add_task(schedule_db_update)
     app.run(port=5000, debug=True)
