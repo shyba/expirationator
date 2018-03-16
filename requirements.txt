@@ -4,4 +4,4 @@ sanic
 sanic_jinja2
 aiohttp
 ujson
-git+https://github.com/lbryio/lbryschema.git#egg=lbryschema
+git+https://github.com/lbryio/lbryschema.git@tox#egg=lbryschema

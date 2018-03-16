@@ -7,6 +7,9 @@ import asyncio
 import aiohttp
 import ujson
 import re
+
+from lbryschema.decode import smart_decode
+
 from rpc import rpc
 
 height_db = plyvel.DB('db/claim_height/')
@@ -32,19 +35,28 @@ async def get_names():
     update_db(expiring_height)
     trie = await rpc("getclaimsintrie")
     expiring_names = {}
+    valid_expiring_names = {}
     renewed_names = {}
     print(len(expired_names.keys()))
+    types = set()
     for name, claims in [(r['name'], r['claims']) for r in trie]:
         for claim in claims:
             height = int(claim['height'])
             if height < (expiring_height + 576*90):  # ~90 days ahead
                 expiring_names[name] = max(height, expiring_names.get(name, 0))
+                try:
+                    types.add(smart_decode(claim['value']).get('claimType', 'unknown'))
+                    valid_expiring_names[name] = max(valid_expiring_names.get(name, 0), height)
+                except:
+                    print("%s couldn't be decoded" % name)
+                    pass
             elif name in expiring_names:
                 del expiring_names[name]
             if name in expired_names:
                 del expired_names[name]
                 print("removing %s as it is also claimed at %s" % (name, height))
     print(len(expired_names.keys()))
+    print(types)
 
     valid_name_char = "[a-zA-Z0-9\-]"  # these characters are the only valid name characters (from lbryschema:uri.py)
     valid_name_re = re.compile(valid_name_char)
@@ -62,10 +74,19 @@ async def get_names():
     print("Renewed names: %s" %  len(renewed_names))
     print("Expired names: %s" %  len(expired_names))
     print("Expiring names: %s" % len(expiring_names))
+    print("Valid expiring names: %s" % len(valid_expiring_names))
     expired_stats = extract_stats(expired_names, 'expired')
     expiring_stats = extract_stats(expiring_names, 'expiring')
-    print(expired_stats)
-    app_db.put(b'stats', ujson.dumps([expired_stats, expiring_stats]).encode('utf8'))
+    valid_expiring_stats = extract_stats(valid_expiring_names, 'valid and expiring')
+    app_db.put(b'stats', ujson.dumps([expired_stats, expiring_stats, valid_expiring_stats]).encode('utf8'))
+    app_db.put(b'known_types', ujson.dumps(list(types)).encode('utf8'))
+    with app_db.write_batch() as writer:
+        for (name, height) in expired_names.items():
+            writer.put(b'expired' + struct.pack('<I', height), name)
+        for (name, height) in expiring_names.items():
+            writer.put(b'expiring' + struct.pack('<I', height), name)
+        for (name, height) in valid_expiring_names.items():
+            writer.put(b'valid_expiring' + struct.pack('<I', height), name)
 
 def extract_stats(height_by_name_dict, stat_name):
     heights, stats = [], {'x': [], 'y': []}
