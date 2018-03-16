@@ -20,11 +20,18 @@ expired_names = {}
 
 def update_db(expiring_height):
     [app_db.delete(x[0]) for x in app_db]
+    valid_name_char = "[a-zA-Z0-9\-]"  # these characters are the only valid name characters (from lbryschema:uri.py)
+    valid_name_re = re.compile(valid_name_char)
     with app_db.write_batch() as writer:
         for (claim_id, height) in height_db:
             key = struct.pack('>I40s', int(height), claim_id)
             name = names_db.get(claim_id)
-            writer.put(key, name)
+            try:
+                name = name.decode()
+                if not valid_name_re.match(name): continue
+            except UnicodeDecodeError:
+                continue
+            writer.put(key, name.encode())
             if int(height) < expiring_height:
                 expired_names[name] = int(height)
 
@@ -58,14 +65,8 @@ async def get_names():
     print(len(expired_names.keys()))
     print(types)
 
-    valid_name_char = "[a-zA-Z0-9\-]"  # these characters are the only valid name characters (from lbryschema:uri.py)
-    valid_name_re = re.compile(valid_name_char)
     async with aiohttp.ClientSession(json_serialize=ujson.dumps) as session:
         for name in list(expired_names.keys()):
-            try:
-                if not valid_name_re.match(name.decode('utf8')): continue
-            except UnicodeDecodeError:
-                continue
             response = await rpc("getvalueforname", [name], session=session)
             height = response.get('height')
             if height and height > expiring_height:
