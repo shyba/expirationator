@@ -95,11 +95,13 @@ def extract_stats(height_by_name_dict, stat_name):
     stats['name'] = stat_name
     return stats
 
-async def run_updater(height_db=None, names_db=None, app_db=None):
-    height_db = height_db or plyvel.DB('db/claim_height/')
-    names_db = names_db or plyvel.DB('db/claim_names/')
+async def run_updater(app_db=None):
+    height_db = plyvel.DB('db/claim_height/')
+    names_db = plyvel.DB('db/claim_names/')
     app_db = app_db or plyvel.DB('db/height_claim/', create_if_missing=True)
     await get_names(app_db, names_db, height_db)
+    height_db.close()
+    names_db.close()
 
 
 if __name__ == '__main__':
