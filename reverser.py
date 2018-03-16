@@ -1,4 +1,5 @@
 # coding: utf-8
+from binascii import hexlify
 from collections import Counter
 
 import plyvel
@@ -9,12 +10,14 @@ import ujson
 import re
 
 from lbryschema.decode import smart_decode
+from lbryschema.error import DecodeError
 
 from rpc import rpc
 
 
 def update_db(app_db, names_db, height_db, expiring_height):
-    expired_names = {}
+    values_db = plyvel.DB('db/claim_values/')
+    expired_names, known_types = {}, set()
     [app_db.delete(x[0]) for x in app_db]
     valid_name_char = "[a-zA-Z0-9\-]"  # these characters are the only valid name characters (from lbryschema:uri.py)
     valid_name_re = re.compile(valid_name_char)
@@ -25,24 +28,25 @@ def update_db(app_db, names_db, height_db, expiring_height):
             try:
                 name = name.decode()
                 if not valid_name_re.match(name): continue
-            except UnicodeDecodeError:
+                decoded = smart_decode(hexlify(values_db.get(claim_id)).decode())
+                known_types.add(decoded.get('claimType', 'unknown'))
+            except (DecodeError, UnicodeDecodeError):
                 continue
             writer.put(key, name.encode())
             if int(height) < expiring_height:
                 expired_names[name] = int(height)
-    return expired_names
+    return expired_names, known_types
 
 
 async def get_names(app_db, names_db, height_db):
     current_height = await rpc("getblockcount")
     expiring_height = current_height - 262974
-    expired_names = update_db(app_db, names_db, height_db, expiring_height)
+    expired_names, types = update_db(app_db, names_db, height_db, expiring_height)
     trie = await rpc("getclaimsintrie")
     expiring_names = {}
     valid_expiring_names = {}
     renewed_names = {}
     print(len(expired_names.keys()))
-    types = set()
     for name, claims in [(r['name'], r['claims']) for r in trie]:
         for claim in claims:
             height = int(claim['height'])
