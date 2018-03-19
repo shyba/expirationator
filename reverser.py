@@ -18,32 +18,34 @@ from rpc import rpc
 
 def update_db(app_db, names_db, height_db, expiring_height):
     values_db = plyvel.DB('db/claim_values/')
-    expired_names, known_types = {}, set()
+    outpoint_db = plyvel.DB('db/claim_outpoint/')
+    def get_txid_for_claim_id(claim_id):
+        txid_nout = outpoint_db.get(claim_id)
+        txid = txid_nout[0:64]
+        return txid
+    expired_names, known_types, txids = {}, set(), {}
     [app_db.delete(x[0]) for x in app_db]
-    valid_name_char = "[a-zA-Z0-9\-]"  # these characters are the only valid name characters (from lbryschema:uri.py)
-    valid_name_re = re.compile(valid_name_char)
     with app_db.write_batch() as writer:
         for (claim_id, height) in height_db:
             key = struct.pack('>I40s', int(height), claim_id)
-            name = names_db.get(claim_id)
             try:
-                name = name.decode()
-                if not valid_name_re.match(name): continue
-                parsed_uri = parse_lbry_uri(name)
-                decoded = smart_decode(hexlify(values_db.get(claim_id)).decode())
+                name = names_db.get(claim_id)
+                parse_lbry_uri(name.decode('utf8'))
+                decoded = smart_decode(values_db.get(claim_id))
                 known_types.add(decoded.get('claimType', 'unknown'))
+                if int(height) < expiring_height:
+                    expired_names[name] = int(height)
+                    txids[name] = get_txid_for_claim_id(claim_id)
+                    writer.put(key, name)
             except (DecodeError, UnicodeDecodeError, URIParseError):
                 continue
-            writer.put(key, name.encode())
-            if int(height) < expiring_height:
-                expired_names[name] = int(height)
-    return expired_names, known_types
+    return expired_names, known_types, txids
 
 
 async def get_names(app_db, names_db, height_db):
     current_height = await rpc("getblockcount")
     expiring_height = current_height - 262974
-    expired_names, types = update_db(app_db, names_db, height_db, expiring_height)
+    expired_names, types, expired_txids_by_name = update_db(app_db, names_db, height_db, expiring_height)
     trie = await rpc("getclaimsintrie")
     expiring_names = {}
     valid_expiring_names = {}
@@ -63,6 +65,16 @@ async def get_names(app_db, names_db, height_db):
         if name in expired_names:
             renewed_names[name] = expired_names.pop(name)
             print("removing %s as it is also claimed at %s" % (name, max_height))
+
+    # verify for spent txs in expired set
+    async with aiohttp.ClientSession(json_serialize=ujson.dumps) as session:
+        for name in list(expired_names.keys()):
+            txid = expired_txids_by_name[name]
+            claims = await rpc("getclaimsfortx", [txid], session)
+            if not claims:
+                del expired_names[name]
+                print("Spent expired: %s - %s" % (name, txid))
+
     print(len(expired_names.keys()))
     print(types)
     print("Renewed names: %s" %  len(renewed_names))
