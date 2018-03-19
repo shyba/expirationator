@@ -30,10 +30,10 @@ def update_db(app_db, names_db, height_db, expiring_height):
             key = struct.pack('>I40s', int(height), claim_id)
             try:
                 name = names_db.get(claim_id)
-                parse_lbry_uri(name.decode('utf8'))
+                parsed = parse_lbry_uri(name.decode('utf8'))
                 decoded = smart_decode(values_db.get(claim_id))
                 known_types.add(decoded.get('claimType', 'unknown'))
-                if decoded.get('claimType') == 'certificateType':
+                if decoded.get('claimType') == 'certificateType' or parsed.is_channel:
                     expired_channels[name] = height
                 if int(height) < expiring_height:
                     expired_names[name] = int(height)
@@ -52,6 +52,8 @@ async def get_names(app_db, names_db, height_db):
     expiring_names = {}
     valid_expiring_names = {}
     renewed_names = {}
+    expiring_channels = {}
+    signed_expiring_claims = {}
     print(len(expired_names.keys()))
 
     for name, claims in [(r['name'], r['claims']) for r in trie]:
@@ -60,9 +62,16 @@ async def get_names(app_db, names_db, height_db):
         if max_height < (expiring_height + 576*90):  # ~90 days ahead
             expiring_names[name] = max_height
             try:
-                types.add(smart_decode(current_value).get('claimType', 'unknown'))
+                decoded = smart_decode(current_value)
+                claim_type = decoded.get('claimType', 'unknown')
+                parsed = parse_lbry_uri(name)
+                if claim_type == 'certificateType' or parsed.is_channel:
+                    expiring_channels[name] = max_height
+                if decoded.signature:
+                    signed_expiring_claims[name] = max_height
+                types.add(claim_type)
                 valid_expiring_names[name] = expiring_names[name]
-            except:
+            except (DecodeError, UnicodeDecodeError, URIParseError):
                 pass
         if name in expired_names:
             renewed_names[name] = expired_names.pop(name)
@@ -85,14 +94,20 @@ async def get_names(app_db, names_db, height_db):
     print("Expired names: %s" %  len(expired_names))
     print("Expired channels: %s" %  len(expired_chan))
     print("Expiring names: %s" % len(expiring_names))
+    print("Expiring channels: %s" % len(expiring_channels))
+    print("Signed expiring names: %s" % len(signed_expiring_claims))
     print("Valid expiring names: %s" % len(valid_expiring_names))
     expired_stats = extract_stats(expired_names, 'expired')
     expired_chan_stats = extract_stats(expired_chan, 'expired channels')
     expiring_stats = extract_stats(expiring_names, 'expiring')
+    expiring_channels_stats = extract_stats(expiring_channels, 'expiring channels')
+    signed_expiring_stats = extract_stats(signed_expiring_claims, 'signed expiring channels')
     valid_expiring_stats = extract_stats(valid_expiring_names, 'valid and expiring')
-    app_db.put(b'stats', ujson.dumps([expired_stats, expired_chan_stats, expiring_stats, valid_expiring_stats]).encode('utf8'))
+    app_db.put(b'stats', ujson.dumps([expired_stats, expired_chan_stats, expiring_stats, valid_expiring_stats,
+                                      expiring_channels_stats, signed_expiring_stats]).encode('utf8'))
     working_data = {'expired': sorted_values(expired_names), 'expiring': sorted_values(expiring_names),
                     'valid_expiring': sorted_values(valid_expiring_names), 'expired_channels': expired_chan,
+                    'expiring_channels': expiring_channels,
                     'known_types': list(types), 'last_run_height': current_height}
     app_db.put(b'working_data', ujson.dumps(working_data).encode('utf8'))
 
