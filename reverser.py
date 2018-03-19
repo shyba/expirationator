@@ -23,7 +23,7 @@ def update_db(app_db, names_db, height_db, expiring_height):
         txid_nout = outpoint_db.get(claim_id)
         txid = txid_nout[0:64]
         return txid
-    expired_names, known_types, txids = {}, set(), {}
+    expired_names, known_types, txids, expired_channels = {}, set(), {}, {}
     [app_db.delete(x[0]) for x in app_db]
     with app_db.write_batch() as writer:
         for (claim_id, height) in height_db:
@@ -33,19 +33,21 @@ def update_db(app_db, names_db, height_db, expiring_height):
                 parse_lbry_uri(name.decode('utf8'))
                 decoded = smart_decode(values_db.get(claim_id))
                 known_types.add(decoded.get('claimType', 'unknown'))
+                if decoded.get('claimType') == 'certificateType':
+                    expired_channels[name] = height
                 if int(height) < expiring_height:
                     expired_names[name] = int(height)
                     txids[name] = get_txid_for_claim_id(claim_id)
                     writer.put(key, name)
             except (DecodeError, UnicodeDecodeError, URIParseError):
                 continue
-    return expired_names, known_types, txids
+    return expired_names, known_types, txids, expired_channels
 
 
 async def get_names(app_db, names_db, height_db):
     current_height = await rpc("getblockcount")
     expiring_height = current_height - 262974
-    expired_names, types, expired_txids_by_name = update_db(app_db, names_db, height_db, expiring_height)
+    expired_names, types, expired_txids_by_name, expired_chan = update_db(app_db, names_db, height_db, expiring_height)
     trie = await rpc("getclaimsintrie")
     expiring_names = {}
     valid_expiring_names = {}
@@ -75,18 +77,22 @@ async def get_names(app_db, names_db, height_db):
                 del expired_names[name]
                 print("Spent expired: %s - %s" % (name, txid))
 
+    [expired_chan.pop(name) for name in list(expired_chan.keys()) if name not in expired_names]
+
     print(len(expired_names.keys()))
     print(types)
     print("Renewed names: %s" %  len(renewed_names))
     print("Expired names: %s" %  len(expired_names))
+    print("Expired channels: %s" %  len(expired_chan))
     print("Expiring names: %s" % len(expiring_names))
     print("Valid expiring names: %s" % len(valid_expiring_names))
     expired_stats = extract_stats(expired_names, 'expired')
+    expired_chan_stats = extract_stats(expired_chan, 'expired channels')
     expiring_stats = extract_stats(expiring_names, 'expiring')
     valid_expiring_stats = extract_stats(valid_expiring_names, 'valid and expiring')
-    app_db.put(b'stats', ujson.dumps([expired_stats, expiring_stats, valid_expiring_stats]).encode('utf8'))
+    app_db.put(b'stats', ujson.dumps([expired_stats, expired_chan_stats, expiring_stats, valid_expiring_stats]).encode('utf8'))
     working_data = {'expired': sorted_values(expired_names), 'expiring': sorted_values(expiring_names),
-                    'valid_expiring': sorted_values(valid_expiring_names),
+                    'valid_expiring': sorted_values(valid_expiring_names), 'expired_channels': expired_chan,
                     'known_types': list(types), 'last_run_height': current_height}
     app_db.put(b'working_data', ujson.dumps(working_data).encode('utf8'))
 
