@@ -106,8 +106,9 @@ async def get_names(app_db, names_db, height_db):
     app_db.put(b'stats', ujson.dumps([expired_stats, expired_chan_stats, expiring_stats, valid_expiring_stats,
                                       expiring_channels_stats, signed_expiring_stats]).encode('utf8'))
     working_data = {'expired': sorted_values(expired_names), 'expiring': sorted_values(expiring_names),
-                    'valid_expiring': sorted_values(valid_expiring_names), 'expired_channels': expired_chan,
-                    'expiring_channels': expiring_channels,
+                    'valid_expiring': sorted_values(valid_expiring_names),
+                    'expired_channels': sorted_values(expired_chan),
+                    'expiring_channels': sorted_values(expiring_channels),
                     'known_types': list(types), 'last_run_height': current_height}
     app_db.put(b'working_data', ujson.dumps(working_data).encode('utf8'))
 
