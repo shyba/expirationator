@@ -62,16 +62,20 @@ async def get_names(app_db, names_db, height_db):
         if max_height < (expiring_height + 576*90):  # ~90 days ahead
             expiring_names[name] = max_height
             try:
-                decoded = smart_decode(current_value)
-                claim_type = decoded.get('claimType', 'unknown')
                 parsed = parse_lbry_uri(name)
+                decoded = smart_decode(current_value.encode('ISO-8859-1'))
+                claim_type = decoded.get('claimType', 'unknown')
                 if claim_type == 'certificateType' or parsed.is_channel:
                     expiring_channels[name] = max_height
                 if decoded.signature:
                     signed_expiring_claims[name] = max_height
                 types.add(claim_type)
                 valid_expiring_names[name] = expiring_names[name]
-            except (DecodeError, UnicodeDecodeError, URIParseError):
+            except DecodeError:
+                print("Could not decode %s - %s" % (name, current_value.encode('ISO-8859-1')))
+                pass
+            except (UnicodeDecodeError, URIParseError, AssertionError) as e:
+                print("Could not decode %s - %s" % (name, e))
                 pass
         if name in expired_names:
             renewed_names[name] = expired_names.pop(name)
