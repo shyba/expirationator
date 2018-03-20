@@ -91,6 +91,9 @@ async def get_names(app_db, names_db, height_db):
                 print("Spent expired: %s - %s" % (name, txid))
 
     [expired_chan.pop(name) for name in list(expired_chan.keys()) if name not in expired_names]
+    for (key, name) in list(app_db.iterator()):
+        if name not in expired_names:
+            app_db.delete(key)
 
     print(len(expired_names.keys()))
     print(types)
