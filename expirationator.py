@@ -50,7 +50,7 @@ async def plot_it(request):
 async def schedule_db_update(last_height=None):
     last_height = last_height or int(ujson.loads(db.get(b'working_data', '{}')).get('last_run_height', 0))
     current_height = int(await rpc("getblockcount"))
-    if current_height != last_height:
+    if (current_height % 10) == 0 and current_height != last_height:
         print("New block, running DB updater.")
         from reverser import run_updater
         await run_updater(app_db=db)
