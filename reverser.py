@@ -34,9 +34,9 @@ def update_db(app_db, names_db, height_db, expiring_height):
                 decoded = smart_decode(values_db.get(claim_id))
                 known_types.add(decoded.get('claimType', 'unknown'))
                 if decoded.get('claimType') == 'certificateType' or parsed.is_channel:
-                    expired_channels[name] = height
+                    expired_channels[name] = (height, claim_id)
                 if int(height) < expiring_height:
-                    expired_names[name] = int(height)
+                    expired_names[name] = (int(height), claim_id)
                     txids[name] = get_txid_for_claim_id(claim_id)
                     writer.put(key, name.encode('utf8'))
             except (DecodeError, UnicodeDecodeError, URIParseError):
@@ -59,16 +59,17 @@ async def get_names(app_db, names_db, height_db):
     for name, claims in [(r['name'], r['claims']) for r in trie]:
         max_height = max(int(c['height']) for c in claims)
         current_value = [c['value'] for c in claims if int(c['height']) == max_height][0]
+        claim_id = [c['claimId'] for c in claims if int(c['height']) == max_height][0]
         if max_height < (expiring_height + 576*90):  # ~90 days ahead
-            expiring_names[name] = max_height
+            expiring_names[name] = (max_height, claim_id)
             try:
                 parsed = parse_lbry_uri(name)
                 decoded = smart_decode(current_value.encode('ISO-8859-1'))
                 claim_type = decoded.get('claimType', 'unknown')
                 if claim_type == 'certificateType' or parsed.is_channel:
-                    expiring_channels[name] = max_height
+                    expiring_channels[name] = (max_height, claim_id)
                 if decoded.signature:
-                    signed_expiring_claims[name] = max_height
+                    signed_expiring_claims[name] = (max_height, claim_id)
                 types.add(claim_type)
                 valid_expiring_names[name] = expiring_names[name]
             except DecodeError:
@@ -125,7 +126,7 @@ def sorted_values(dictionary):
 def extract_stats(height_by_name_dict, stat_name):
     heights, stats = [], {'x': [], 'y': []}
     accumulated = 0
-    for (height, sum) in sorted(Counter([height for (name, height) in height_by_name_dict.items()]).items()):
+    for (height, sum) in sorted(Counter([height for (name, (height, claim_id)) in height_by_name_dict.items()]).items()):
         accumulated += sum
         stats['x'].append(height)
         stats['y'].append(accumulated)
