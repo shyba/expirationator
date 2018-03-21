@@ -13,7 +13,8 @@
     <p class="d-block text-sm-left">Current lbrycrd Height: {{ height }}</p>
     <p class="d-block text-sm-left">Last Database Update: {{ working_data.get('last_run_height', 'never') }}</p>
     <p class="d-block text-sm-left">Expiring Height (h - 262974): {{ height - 262974 }}</p>
-    <p class="d-block text-sm-left">Red is today, yellow in 7 days, green in 15 days, last value is one month ahead.</p>
+    <p class="d-block text-sm-left">Reclaim Wallet {{ wallet_address }} has {{ balance }} LBC.</p>
+    <p class="d-block text-sm-left">Red is what's expiring today, yellow in 7 days, green in 15 days, last value is one month ahead.</p>
     <div id="tester" class="row"></div>
     <h1>EXPIRING:</h1>
     <div class="row">
