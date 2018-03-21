@@ -16,17 +16,6 @@
     <p class="d-block text-sm-left">Reclaim Wallet {{ wallet_address }} has {{ balance }} LBC.</p>
     <p class="d-block text-sm-left">Red is what's expiring today, yellow in 7 days, green in 15 days, last value is one month ahead.</p>
     <div id="tester" class="row"></div>
-    <h1>EXPIRING:</h1>
-    <div class="row">
-            {% for ((height, claim_id), name) in working_data['expiring'] %}
-                <div class="col">
-                {{ name }}@{{ height }}
-                <a class="btn btn-primary" href="https://explorer.lbry.io/claims/{{ claim_id }}">Block Explorer</a>
-                <a class="btn btn-danger" href="/reclaim/{{ height }}/{{ claim_id }}/{{ name }}">Reclaim</a>
-                </div>
-            {% endfor %}
-
-    </div>
     <h1>EXPIRED:</h1>
     <div class="row">
         {% for ((height, claim_id), name) in working_data['expired'] %}
@@ -36,6 +25,17 @@
                 <a class="btn btn-danger" href="/reclaim/{{ height }}/{{ claim_id }}">Reclaim</a>
             </div>
         {% endfor %}
+
+    </div>
+    <h1>EXPIRING:</h1>
+    <div class="row">
+            {% for ((height, claim_id), name) in working_data['expiring'] %}
+                <div class="col">
+                {{ name }}@{{ height }}
+                <a class="btn btn-primary" href="https://explorer.lbry.io/claims/{{ claim_id }}">Block Explorer</a>
+                <a class="btn btn-danger" href="/reclaim/{{ height }}/{{ claim_id }}/{{ name }}">Reclaim</a>
+                </div>
+            {% endfor %}
 
     </div>
 </div>
