@@ -1,7 +1,11 @@
 import struct
 import ujson
+import asyncio
 
 from rpc import rpc
+from reverser import run_updater
+from reverser import reclaim
+
 from sanic import Sanic
 from sanic import response
 from sanic_jinja2 import SanicJinja2
@@ -38,6 +42,15 @@ def stats(request):
     return response.raw(db.get(b'stats'), content_type='application/json')
 
 
+@app.route('/reclaim/<height:int>/<claim_id>')
+async def reclaim_expired(request, height, claim_id):
+    key = struct.pack('>I40s', height, claim_id.encode('utf8'))
+    name = db.get(key)
+    if not name:
+        return response.json({'success': False, 'result': 'Unknown claim (database upgrade may be ongoing)'})
+    return response.json(await reclaim(claim_id=claim_id.encode(), name=name))
+
+
 @app.route('/')
 @jinja.template('hello.html')
 async def plot_it(request):
@@ -52,7 +65,6 @@ async def schedule_db_update(last_height=None):
     current_height = int(await rpc("getblockcount"))
     if (current_height % 10) == 0 and current_height != last_height:
         print("New block, running DB updater.")
-        from reverser import run_updater
         await run_updater(app_db=db)
     loop = app.loop
     loop.call_later(1, lambda: loop.create_task(schedule_db_update(current_height)))

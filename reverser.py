@@ -14,10 +14,10 @@ from lbryschema.uri import parse_lbry_uri
 from lbryschema.error import DecodeError, URIParseError
 
 from rpc import rpc
+values_db = plyvel.DB('db/claim_values/')
 
 
 def update_db(app_db, names_db, height_db, expiring_height):
-    values_db = plyvel.DB('db/claim_values/')
     outpoint_db = plyvel.DB('db/claim_outpoint/')
     def get_txid_for_claim_id(claim_id):
         txid_nout = outpoint_db.get(claim_id)
@@ -29,8 +29,8 @@ def update_db(app_db, names_db, height_db, expiring_height):
         for (claim_id, height) in height_db:
             key = struct.pack('>I40s', int(height), claim_id)
             try:
-                name = names_db.get(claim_id)
-                parsed = parse_lbry_uri(name.decode('utf8'))
+                name = names_db.get(claim_id).decode('utf8')
+                parsed = parse_lbry_uri(name)
                 decoded = smart_decode(values_db.get(claim_id))
                 known_types.add(decoded.get('claimType', 'unknown'))
                 if decoded.get('claimType') == 'certificateType' or parsed.is_channel:
@@ -38,7 +38,7 @@ def update_db(app_db, names_db, height_db, expiring_height):
                 if int(height) < expiring_height:
                     expired_names[name] = int(height)
                     txids[name] = get_txid_for_claim_id(claim_id)
-                    writer.put(key, name)
+                    writer.put(key, name.encode('utf8'))
             except (DecodeError, UnicodeDecodeError, URIParseError):
                 continue
     return expired_names, known_types, txids, expired_channels
@@ -92,7 +92,7 @@ async def get_names(app_db, names_db, height_db):
 
     [expired_chan.pop(name) for name in list(expired_chan.keys()) if name not in expired_names]
     for (key, name) in list(app_db.iterator()):
-        if name not in expired_names:
+        if name.decode('utf8') not in expired_names:
             app_db.delete(key)
 
     print(len(expired_names.keys()))
@@ -139,6 +139,17 @@ async def run_updater(app_db=None):
     await get_names(app_db, names_db, height_db)
     height_db.close()
     names_db.close()
+
+
+async def reclaim(claim_id, name):
+    value = values_db.get(claim_id)
+    try:
+        decoded = smart_decode(value)
+        stripped_sig = decoded.serialized_no_signature
+        return await rpc('claimname', [name, hexlify(stripped_sig), 0.001])
+    except (DecodeError, UnicodeDecodeError, AssertionError) as e:
+        msg = 'decode failed for %s: %s' % (claim_id, hexlify(value))
+        return {'success': False, 'result': msg}
 
 
 if __name__ == '__main__':
