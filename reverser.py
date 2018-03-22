@@ -147,7 +147,8 @@ async def reclaim(claim_id, name):
     try:
         decoded = smart_decode(value)
         stripped_sig = decoded.serialized_no_signature
-        return await rpc('claimname', [name, hexlify(stripped_sig), 0.001])
+        result = await rpc('claimname', [name, hexlify(stripped_sig), 0.001])
+        return {'success': 'code' not in result, 'result': result}
     except (DecodeError, UnicodeDecodeError, AssertionError) as e:
         msg = 'decode failed for %s: %s' % (claim_id, hexlify(value))
         return {'success': False, 'result': msg}
