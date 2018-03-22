@@ -128,7 +128,7 @@ def extract_stats(height_by_name_dict, stat_name):
     accumulated = 0
     for (height, sum) in sorted(Counter([height for (name, (height, claim_id)) in height_by_name_dict.items()]).items()):
         accumulated += sum
-        stats['x'].append(height)
+        stats['x'].append(height + 262974)
         stats['y'].append(accumulated)
     stats['name'] = stat_name
     return stats
