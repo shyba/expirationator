@@ -50,6 +50,14 @@ async def reclaim_expired(request, height, claim_id):
         return response.json({'success': False, 'result': 'Unknown claim (database upgrade may be ongoing)'})
     return response.json(await reclaim(claim_id=claim_id.encode(), name=name))
 
+@app.route('/reclaim_all')
+async def reclaim_all(request):
+    results = []
+    for (height, claim_id, name) in sorted_dump():
+        results.append(await reclaim(claim_id=claim_id, name=name))
+    return response.json(results)
+
+
 @app.route('/reclaim/<height:int>/<claim_id>/<name>')
 async def reclaim_force(request, height, claim_id, name):
     return response.json(await reclaim(claim_id=claim_id.encode(), name=name.encode()))
