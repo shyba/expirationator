@@ -67,11 +67,14 @@ async def reclaim_force(request, height, claim_id, name):
 @jinja.template('hello.html')
 async def plot_it(request):
     current_height = rpc("getblockcount")
+    server_claims = rpc("listnameclaims")
     working_data = ujson.loads(db.get(b'working_data'))
     current_height = await current_height
     wallet_address = await rpc("getaddressesbyaccount", [''])
+    server_claims = await server_claims
     balance = await rpc("getbalance", ['', 0])
-    return {'height': current_height, 'working_data': working_data, 'wallet_address': wallet_address, 'balance': balance}
+    return {'height': current_height, 'working_data': working_data, 'wallet_address': wallet_address,
+            'balance': balance, 'server_claims': server_claims}
 
 
 async def schedule_db_update(last_height=None):
