@@ -80,9 +80,18 @@ async def plot_it(request):
 async def schedule_db_update(last_height=None):
     last_height = last_height or int(ujson.loads(db.get(b'working_data', '{}')).get('last_run_height', 0))
     current_height = int(await rpc("getblockcount"))
-    if (current_height % 10) == 0 and current_height != last_height:
-        print("New block, running DB updater.")
-        await run_updater(app_db=db)
+    if current_height != last_height:
+        if (current_height % 10) == 0:
+            print("New block, running DB updater.")
+            await run_updater(app_db=db)
+        expired = sorted_dump(stop=(current_height - 262974))
+        if expired:
+            (height, claim_id, name) = expired[0]
+            result = await reclaim(claim_id=claim_id, name=name)
+            print("Reclaimed %s: %s" % (name, result))
+            if result.get('success', False):
+                key = struct.pack('>I40s', height, claim_id)
+                db.delete(key)
     loop = app.loop
     loop.call_later(1, lambda: loop.create_task(schedule_db_update(current_height)))
 
